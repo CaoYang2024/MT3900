@@ -17,23 +17,19 @@ class KuksaClient:
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
     def _run(self, args):
-        """
-        Internal runner for docker CLI commands.
-        """
         cmd = [
-            "docker", "run", "-it", "--rm",
-            "-e", "TERM=xterm",              # ✅ REQUIRED for Pi/SSH
-            self.image,
-            "--server", self.server,
-        ] + args
+                  "docker", "run", "-i", "--rm",  # ✅ 不要使用 -t，只用 -i
+                  "-e", "TERM=xterm",  # ✅ 仍然避免 terminfo not found
+                  self.image,
+                  "--server", self.server,
+              ] + args
 
-        print("\nCMD:", " ".join(cmd))      # Print executed command
+        print("\nCMD:", " ".join(cmd))
 
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
-            stdin=subprocess.PIPE           # ✅ Avoid "Not a tty (os error 25)"
+            text=True
         )
 
         output = (result.stdout or "") + (result.stderr or "")
@@ -43,7 +39,6 @@ class KuksaClient:
             raise RuntimeError(f"Kuksa CLI error:\n{output}")
 
         return output.strip()
-
     # -------------------------------
     # API exposed functions
     # -------------------------------
