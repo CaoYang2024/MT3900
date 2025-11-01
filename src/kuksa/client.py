@@ -4,13 +4,19 @@ import re
 
 class KuksaInteractiveClient:
     """
-    Connect to kuksa-databroker-cli in interactive TTY mode and send commands.
+    Control kuksa-databroker-cli in interactive mode (exactly like manual CLI)
+    Supports:
+      • send("publish Vehicle.Speed 55")
+      • get("Vehicle.Speed")
     """
 
     def __init__(self, server="192.168.0.180:55555"):
         self.server = server
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
+        print(f"🔌 Connecting to Kuksa Databroker @ {self.server}")
+
+        # ✅ interactive CLI (same as your manual command)
         self.process = subprocess.Popen(
             [
                 "docker", "run", "-it", "--rm",
@@ -25,50 +31,50 @@ class KuksaInteractiveClient:
             bufsize=1
         )
 
-        # wait for CLI to print welcome ascii
+        # 等待欢迎界面输出完毕
         time.sleep(2)
         print(self.process.stdout.read())
 
-    def send(self, cmd: str) -> str:
+    def send(self, cmd: str):
         """
-        Send a command to the kuksa interactive CLI
-        and return output
+        Send command to interactive CLI
         """
         print(f">>> {cmd}")
-
-        # send command
         self.process.stdin.write(cmd + "\n")
         self.process.stdin.flush()
 
-        time.sleep(0.5)  # small wait for output ready
+        time.sleep(0.4)
         output = self.process.stdout.read()
-
         print(output)
         return output
 
     def get(self, signal: str):
         """
-        Get signal value, extract number
+        Read VSS value
         """
         output = self.send(f"get {signal}")
-        match = re.search(rf"{signal}[:|]\s*(.*)", output)
-        if match:
-            return match.group(1).strip()
+
+        m = re.search(rf"{signal}[:|]\s*(.*)", output)
+        if m:
+            return m.group(1).strip()
         return None
 
     def close(self):
-        self.process.stdin.write("exit\n")
-        self.process.stdin.flush()
+        self.send("exit")
         self.process.terminate()
 
 
-# ===========================================
-# Usage example:
-# ===========================================
+# ===============================
+# Test
+# ===============================
 if __name__ == "__main__":
     kuksa = KuksaInteractiveClient("192.168.0.180:55555")
 
-    speed = kuksa.get("Vehicle.Speed")
-    print("✅ Current speed =", speed)
+    # publish
+    kuksa.send("publish Vehicle.Speed 120")
+
+    # get
+    v = kuksa.get("Vehicle.Speed")
+    print("✅ speed =", v)
 
     kuksa.close()
