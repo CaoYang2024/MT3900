@@ -1,0 +1,460 @@
+{
+  "assetAdministrationShells": [
+    {
+      "idShort": "sensor_Ultrasonic_A01A",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab",
+      "assetInformation": {
+        "assetKind": "Instance",
+        "globalAssetId": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab"
+      },
+      "submodels": [
+        {
+          "type": "ModelReference",
+          "keys": [
+            {
+              "type": "Submodel",
+              "value": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/TechnicalData"
+            }
+          ]
+        },
+        {
+          "type": "ModelReference",
+          "keys": [
+            {
+              "type": "Submodel",
+              "value": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/AssetInterface"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "submodels": [
+    {
+      "idShort": "TechnicalData",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/TechnicalData",
+      "kind": "Instance",
+      "submodelElements": [
+        {
+          "modelType": "SubmodelElementCollection",
+          "idShort": "GeneralInformation",
+          "value": [
+            {
+              "modelType": "Property",
+              "idShort": "Name",
+              "valueType": "xs:string",
+              "value": "Ultrasonic_A01A",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAW338#001"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "Manufacturer",
+              "valueType": "xs:string",
+              "value": "DFRobot",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAO677#002"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "SensorType",
+              "valueType": "xs:string",
+              "value": "Ultrasonic",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#01-AAP906#001"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "modelType": "SubmodelElementCollection",
+          "idShort": "TechnicalProperties",
+          "value": [
+            {
+              "modelType": "Property",
+              "idShort": "DataType",
+              "valueType": "xs:string",
+              "value": "double",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAO295#002"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "ValueRange",
+              "valueType": "xs:string",
+              "value": "0.03 - 4 m",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAO663#002"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "OperatingVoltage",
+              "valueType": "xs:string",
+              "value": "5V DC",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAM292#002"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "OperatingCurrent",
+              "valueType": "xs:string",
+              "value": "20mA",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAO108#003"
+                  }
+                ]
+              }
+            },
+            {
+              "modelType": "Property",
+              "idShort": "Reference",
+              "valueType": "xs:string",
+              "value": "RS485 datasheet V1.0",
+              "semanticId": {
+                "type": "ExternalReference",
+                "keys": [
+                  {
+                    "type": "GlobalReference",
+                    "value": "0173-1#02-AAO198#004"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "modelType": "Submodel"
+    },
+    {
+      "idShort": "AssetInterface",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/AssetInterface",
+      "kind": "Instance",
+      "submodelElements": [
+        {
+          "modelType": "Property",
+          "idShort": "Protocol",
+          "valueType": "xs:string",
+          "value": "HTTP REST"
+        },
+        {
+          "modelType": "Property",
+          "idShort": "Endpoint",
+          "valueType": "xs:string",
+          "value": "http://192.168.1.20:8000/ultrasonic/read"
+        }
+      ],
+      "modelType": "Submodel"
+    }
+  ],
+  "conceptDescriptions": [
+    {
+      "idShort": "Name",
+      "id": "0173-1#02-AAW338#001",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "Name"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "Name defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "ManufacturerName",
+      "id": "0173-1#02-AAO677#002",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "ManufacturerName"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "ManufacturerName defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "SensorType",
+      "id": "0173-1#01-AAP906#001",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "SensorType"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "SensorType defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "DataType",
+      "id": "0173-1#02-AAO295#002",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "DataType"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "DataType defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "ValueRange",
+      "id": "0173-1#02-AAO663#002",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "ValueRange"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "ValueRange defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "Voltage",
+      "id": "0173-1#02-AAM292#002",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "Voltage"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "Voltage defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "Current",
+      "id": "0173-1#02-AAO108#003",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "Current"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "Current defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "Reference",
+      "id": "0173-1#02-AAO198#004",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "Reference"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "Reference defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    }
+  ]
+}

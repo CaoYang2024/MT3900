@@ -1,0 +1,15 @@
+sensor:
+  name: Ultrasonic_A01A          # ✅ 必填
+  manufacturer: DFRobot          # ✅ 必填
+  type: Ultrasonic              # ✅ 必填
+  datatype: double
+  range:                        # ⛔ 空 → skip
+  voltage: 5V
+  current:
+  reference:                    # ⛔ skip
+
+interface:
+  protocol: HTTP REST
+  endpoint: http://192.168.1.100:8000/read
+  signal_path: Vehicle.Chassis.Ultrasonic.Row1.Left.Distance
+  publish: true
