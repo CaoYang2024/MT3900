@@ -1,80 +1,65 @@
 import subprocess
-import time
 import re
 
-class KuksaInteractiveClient:
+
+class KuksaClient:
     """
-    Control kuksa-databroker-cli in interactive mode (exactly like manual CLI)
-    Supports:
-      • send("publish Vehicle.Speed 55")
-      • get("Vehicle.Speed")
+    Minimal Kuksa Databroker CLI wrapper (publish + get)
+    Works like the CLI:
+        docker run --rm -e TERM=xterm ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main --server <IP> publish <signal> <value>
     """
 
     def __init__(self, server="192.168.0.180:55555"):
         self.server = server
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
-        print(f"🔌 Connecting to Kuksa Databroker @ {self.server}")
-
-        # ✅ interactive CLI (same as your manual command)
-        self.process = subprocess.Popen(
-            [
-                "docker", "run", "-it", "--rm",
-                "-e", "TERM=xterm",
-                self.image,
-                "--server", self.server,
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1
-        )
-
-        # 等待欢迎界面输出完毕
-        time.sleep(2)
-        print(self.process.stdout.read())
-
-    def send(self, cmd: str):
+    def _run(self, args):
         """
-        Send command to interactive CLI
+        run docker CLI, return full output text
         """
-        print(f">>> {cmd}")
-        self.process.stdin.write(cmd + "\n")
-        self.process.stdin.flush()
+        cmd = [
+            "docker", "run", "--rm",
+            "-e", "TERM=xterm",
+            self.image,
+            "--server", self.server,
+        ] + args
 
-        time.sleep(0.4)
-        output = self.process.stdout.read()
-        print(output)
+        print("CMD:", " ".join(cmd))  # debug print
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        return (result.stdout or "") + (result.stderr or "")
+
+    def publish(self, signal, value):
+        """
+        publish value to vss
+        """
+        output = self._run(["publish", signal, str(value)])
+        print("[PUBLISH]", output)
         return output
 
-    def get(self, signal: str):
+    def get(self, signal):
         """
-        Read VSS value
+        get value, extract last part
+        Example output:
+            Vehicle.Speed: 120.00 km/h
+        We just return `120.00 km/h`
         """
-        output = self.send(f"get {signal}")
+        output = self._run(["get", signal])
 
-        m = re.search(rf"{signal}[:|]\s*(.*)", output)
+        # extract last piece after ":" or "|"
+        m = re.search(rf"{signal}[:|]\s*(.+)", output)
         if m:
-            return m.group(1).strip()
+            value = m.group(1).strip()
+            print(f"[GET] {signal} =", value)
+            return value
+
+        print(f"[GET] No value found for {signal}")
         return None
 
-    def close(self):
-        self.send("exit")
-        self.process.terminate()
 
-
-# ===============================
-# Test
-# ===============================
 if __name__ == "__main__":
-    kuksa = KuksaInteractiveClient("192.168.0.180:55555")
+    kuksa = KuksaClient("192.168.0.180:55555")
 
-    # publish
-    kuksa.send("publish Vehicle.Speed 120")
-
-    # get
-    v = kuksa.get("Vehicle.Speed")
-    print("✅ speed =", v)
-
-    kuksa.close()
+    # just test publish + get
+    kuksa.publish("Vehicle.Speed", 88)
+    kuksa.get("Vehicle.Speed")
