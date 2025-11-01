@@ -1,0 +1,7 @@
+docker run -d \
+  --name Server \
+  --network host \
+  -v "$(pwd)/vss_with_ultrasonic.json:/vss.json:ro" \
+  ghcr.io/eclipse-kuksa/kuksa-databroker:main \
+  --insecure --vss /vss.json
+docker run -it --rm --network kuksa ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main --server Server:55555
