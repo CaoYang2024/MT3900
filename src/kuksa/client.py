@@ -2,34 +2,41 @@ import subprocess
 
 class KuksaClient:
     """
-    Minimal Kuksa Databroker CLI wrapper (Docker-based).
+    Minimal Kuksa Databroker CLI wrapper (non-interactive JSON mode)
     Supports:
       • publish(signal, value)
       • get(signal)
-    Runs correctly on Raspberry Pi + SSH + Windows.
     """
 
     def __init__(self, server="192.168.0.180:55555"):
         """
-        server: Kuksa Databroker 地址，如 "192.168.0.180:55555"
+        server: Kuksa Databroker IP:PORT
+        example: "192.168.0.180:55555"
         """
         self.server = server
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
     def _run(self, args):
+        """
+        Execute Kuksa CLI in NON-interactive mode (NO TTY needed)
+        ✅ avoids: "Error: Not a tty (os error 25)"
+        ✅ avoids: "terminfo entry not found"
+        """
+
         cmd = [
-                  "docker", "run", "-i", "--rm",  # ✅ 不要使用 -t，只用 -i
-                  "-e", "TERM=xterm",  # ✅ 仍然避免 terminfo not found
-                  self.image,
-                  "--server", self.server,
-              ] + args
+            "docker", "run", "--rm",
+            "-e", "TERM=xterm",        # ✅ avoid terminfo error
+            self.image,
+            "--insecure", "--json",    # ✅ json output / non-interactive mode
+            "--server", self.server,
+        ] + args
 
         print("\nCMD:", " ".join(cmd))
 
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         output = (result.stdout or "") + (result.stderr or "")
@@ -39,12 +46,13 @@ class KuksaClient:
             raise RuntimeError(f"Kuksa CLI error:\n{output}")
 
         return output.strip()
+
     # -------------------------------
-    # API exposed functions
+    # Public API
     # -------------------------------
     def publish(self, signal: str, value):
         """
-        Publish a numeric/string value to a VSS signal
+        Publish VSS signal
         """
         self._run(["publish", signal, str(value)])
         print(f"[✔] Published: {signal} = {value}")
@@ -52,30 +60,31 @@ class KuksaClient:
 
     def get(self, signal: str):
         """
-        Get a VSS signal value (returns pure string or number)
-        output example:
-            Vehicle.Speed: 55 km/h
-            OR
-            Vehicle.Speed | 55
+        Read VSS signal
+        JSON output sample:
+          {"value": 50, "path": "Vehicle.Speed", "ts":"2024..."}
+
+        Returns: numeric/string value only
         """
-        res = self._run(["get", signal])
+        output = self._run(["get", signal])
 
-        # extract value
-        for sep in ["|", ":"]:
-            if sep in res:
-                return res.split(sep)[-1].strip()
-        return res
+        # extract `"value": ...`
+        if '"value"' in output:
+            try:
+                value = output.split('"value"')[1].split(":")[1].split(",")[0].strip()
+                return value.replace("}", "").strip()
+            except:
+                return output
+
+        return output
 
 
-# ---------------------------------------
-# CLI test (executed only when run directly)
-# ---------------------------------------
+# ======================================================
+# Test mode (exec only when run directly)
+# ======================================================
 if __name__ == "__main__":
-    kuksa = KuksaClient(server="192.168.0.180:55555")
+    kuksa = KuksaClient(server="192.168.0.180:55555")  # <-- modify your server IP here
 
-    # test publish
     kuksa.publish("Vehicle.Speed", 55)
-
-    # test get
-    v = kuksa.get("Vehicle.Speed")
-    print(f"[READ] Vehicle.Speed = {v}")
+    value = kuksa.get("Vehicle.Speed")
+    print(f"[READ] Vehicle.Speed = {value}")
