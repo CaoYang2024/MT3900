@@ -49,6 +49,6 @@ class KuksaClient:
 if __name__ == "__main__":
     kuksa = KuksaClient("192.168.0.180:55555")
 
-    kuksa.publish("Vehicle.Speed", 88)
+    kuksa.publish("Vehicle.Speed", 90)
     v = kuksa.get("Vehicle.Speed")
     print("Return value =", v)  # <-- 最终返回值
