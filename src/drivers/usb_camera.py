@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Generator, Dict
 import numpy as np
 
 from .base import DriverBase
-from ..models.measurement import Measurement
+from models.measurement import Measurement
 
 
 def _probe_device_index(max_index: int = 10) -> Optional[int]:
