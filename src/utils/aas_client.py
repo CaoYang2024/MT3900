@@ -88,26 +88,27 @@ class AASClient:
     # ───────────────────────────────────────────────
     # High-level function: Auto chain resolution
     # ───────────────────────────────────────────────
-
     def auto_set(self, aas_iri: str, submodel_idShort: str, property_idShort: str, value):
         """
         One call to do:
-           - GET shells
-           - find target submodel by idShort
-           - modify the target property
-        Example:
-            client.auto_set(aas_iri, "AssetInterface", "EnablePublishing", True)
+           - GET shell (list submodels)
+           - GET each submodel to find the one matching idShort
+           - PUT property
         """
         shell = self.get_shell(aas_iri)
 
-        # find submodel with idShort
-        target_iri = None
+        target_submodel_iri = None
+
         for sm_ref in shell["submodels"]:
-            if sm_ref.get("keys", [{}])[0]["value"].endswith(submodel_idShort):
-                target_iri = sm_ref["keys"][0]["value"]
+            iri = sm_ref["keys"][0]["value"]
+            sm, _ = self.get_submodel(iri)
+
+            # ✅ 直接比对 submodel JSON 的 idShort 字段
+            if sm["idShort"] == submodel_idShort:
+                target_submodel_iri = iri
                 break
 
-        if not target_iri:
-            raise ValueError(f"Submodel '{submodel_idShort}' not found in shell")
+        if not target_submodel_iri:
+            raise ValueError(f"❌ Submodel '{submodel_idShort}' not found in AAS.")
 
-        return self.set_property(target_iri, property_idShort, value)
+        return self.set_property(target_submodel_iri, property_idShort, value)

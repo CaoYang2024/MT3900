@@ -1,26 +1,38 @@
-# orchestrator/driver_loader.py
+# src/orchestrator/watcher.py
+# -*- coding: utf-8 -*-
 
-import importlib
-from utils.aas_client import AASClient
+"""
+监听 USB / 设备插拔事件，并返回 { type: "ADD" / "REMOVE", path: <device-path>, aas_iri: <AAS IRI> }
+"""
 
-client = AASClient()
+import pyudev
 
-def load_driver_from_aas(aas_iri: str):
-    """从 AAS 解析 driver module 并动态 import"""
+def watch_new_device():
+    context = pyudev.Context()
+    monitor = pyudev.Monitor.from_netlink(context)
+    monitor.filter_by(subsystem="usb")   # 如果你要支持 /dev/video, USB2Serial，这里可以扩展
 
-    # 读取 Submodel → Driver name / VSS Path / EnablePublishing property
-    shell = client.get_shell(aas_iri)
+    print("👀 Watching for USB devices ...")
 
-    # 只找 Submodel idShort = AssetInterface
-    for ref in shell["submodels"]:
-        iri = ref["keys"][0]["value"]
-        submodel, _ = client.get_submodel(iri)
+    for device in iter(monitor.poll, None):
+        dev_node = device.device_node  # /dev/ttyUSB0 / dev/video0
 
-        driver_module = submodel["submodelElements"]["Driver"]["value"]
-        vss_path      = submodel["submodelElements"]["VSSPath"]["value"]
-        enable_key    = "EnablePublishing"
+        if device.action == "add":
+            print(f"✅ USB 插入: {dev_node}")
 
-        module = importlib.import_module(f"drivers.{driver_module}")
-        DriverClass = getattr(module, "Driver")
+            # !!! 暂时返回一个固定的 AAS IRI，等你配置自动识别
+            # 你把这里换成 detect_aas_from_device()
+            return_data = {
+                "type": "ADD",
+                "path": dev_node,
+                "aas_iri": "https://CaoYang/AASbyLLM/tree/main/AAS_Samples/ids/aas/I2C_Temperature_TMP117"
+            }
+            yield return_data
 
-        return DriverClass(vss_path, aas_iri, enable_key)
+        elif device.action == "remove":
+            print(f"❌ USB 拔出: {dev_node}")
+            yield {
+                "type": "REMOVE",
+                "path": dev_node,
+                "aas_iri": None
+            }

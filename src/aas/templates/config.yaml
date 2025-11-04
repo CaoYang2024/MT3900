@@ -3,7 +3,7 @@ sensor:
   manufacturer: DFRobot
   type: Ultrasonic
   datatype: double
-  range: null            # ✅ 空值显式表示没有
+  range: null            
   voltage: "5V"
   current: null
   reference: null

@@ -20,3 +20,19 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+
+############################################################
+## ⛔ Ignore ALL .json and .yaml / .yml files
+############################################################
+*.json
+*.yaml
+*.yml
+
+
+############################################################
+## ✅ Keep ONLY this config.yaml in git
+##   Path must be relative to repo root!
+############################################################
+!/src/aas/templates/config.yaml
+!/home/pi/Downloads/MT3900/src/aas/templates/IDTA 02027-1-0_Template_AIMC.json
