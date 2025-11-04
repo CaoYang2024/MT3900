@@ -1,11 +1,12 @@
 {
   "assetAdministrationShells": [
     {
+      "modelType": "AssetAdministrationShell",
       "idShort": "sensor_Ultrasonic_A01A",
-      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1",
       "assetInformation": {
         "assetKind": "Instance",
-        "globalAssetId": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab"
+        "globalAssetId": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1"
       },
       "submodels": [
         {
@@ -13,7 +14,7 @@
           "keys": [
             {
               "type": "Submodel",
-              "value": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/TechnicalData"
+              "value": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1/submodel/TechnicalData"
             }
           ]
         },
@@ -22,7 +23,7 @@
           "keys": [
             {
               "type": "Submodel",
-              "value": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/AssetInterface"
+              "value": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1/submodel/AssetInterface"
             }
           ]
         }
@@ -32,8 +33,9 @@
   "submodels": [
     {
       "idShort": "TechnicalData",
-      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/TechnicalData",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1/submodel/TechnicalData",
       "kind": "Instance",
+      "modelType": "Submodel",
       "submodelElements": [
         {
           "modelType": "SubmodelElementCollection",
@@ -107,24 +109,9 @@
             },
             {
               "modelType": "Property",
-              "idShort": "ValueRange",
-              "valueType": "xs:string",
-              "value": "0.03 - 4 m",
-              "semanticId": {
-                "type": "ExternalReference",
-                "keys": [
-                  {
-                    "type": "GlobalReference",
-                    "value": "0173-1#02-AAO663#002"
-                  }
-                ]
-              }
-            },
-            {
-              "modelType": "Property",
               "idShort": "OperatingVoltage",
               "valueType": "xs:string",
-              "value": "5V DC",
+              "value": "5V",
               "semanticId": {
                 "type": "ExternalReference",
                 "keys": [
@@ -134,46 +121,16 @@
                   }
                 ]
               }
-            },
-            {
-              "modelType": "Property",
-              "idShort": "OperatingCurrent",
-              "valueType": "xs:string",
-              "value": "20mA",
-              "semanticId": {
-                "type": "ExternalReference",
-                "keys": [
-                  {
-                    "type": "GlobalReference",
-                    "value": "0173-1#02-AAO108#003"
-                  }
-                ]
-              }
-            },
-            {
-              "modelType": "Property",
-              "idShort": "Reference",
-              "valueType": "xs:string",
-              "value": "RS485 datasheet V1.0",
-              "semanticId": {
-                "type": "ExternalReference",
-                "keys": [
-                  {
-                    "type": "GlobalReference",
-                    "value": "0173-1#02-AAO198#004"
-                  }
-                ]
-              }
             }
           ]
         }
-      ],
-      "modelType": "Submodel"
+      ]
     },
     {
       "idShort": "AssetInterface",
-      "id": "https://MT3900/YangCao/SDV/Sensor/ids/521ed31d-c45e-4c5b-80a5-0c4a725da4ab/submodel/AssetInterface",
+      "id": "https://MT3900/YangCao/SDV/Sensor/ids/b6c66814-e153-4674-9903-81aa875d12c1/submodel/AssetInterface",
       "kind": "Instance",
+      "modelType": "Submodel",
       "submodelElements": [
         {
           "modelType": "Property",
@@ -185,10 +142,30 @@
           "modelType": "Property",
           "idShort": "Endpoint",
           "valueType": "xs:string",
-          "value": "http://192.168.1.20:8000/ultrasonic/read"
+          "value": "http://192.168.1.100:8000/read"
+        },
+        {
+          "modelType": "Property",
+          "idShort": "SignalPath",
+          "valueType": "xs:string",
+          "value": "Vehicle.Chassis.Ultrasonic.Row1.Left.Distance"
+        },
+        {
+          "modelType": "Property",
+          "idShort": "EnablePublishing",
+          "valueType": "xs:boolean",
+          "value": "true",
+          "semanticId": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "IEC61360:Switch"
+              }
+            ]
+          }
         }
-      ],
-      "modelType": "Submodel"
+      ]
     }
   ],
   "conceptDescriptions": [
@@ -202,7 +179,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -235,7 +212,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -268,7 +245,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -301,7 +278,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -334,7 +311,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -367,7 +344,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -400,7 +377,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -433,7 +410,7 @@
             "keys": [
               {
                 "type": "GlobalReference",
-                "value": "http://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360/3/0"
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
               }
             ]
           },
@@ -449,6 +426,39 @@
               {
                 "language": "en",
                 "text": "Reference defined by IEC 61360"
+              }
+            ]
+          }
+        }
+      ],
+      "modelType": "ConceptDescription"
+    },
+    {
+      "idShort": "Switch",
+      "id": "IEC61360:Switch",
+      "embeddedDataSpecifications": [
+        {
+          "dataSpecification": {
+            "type": "ExternalReference",
+            "keys": [
+              {
+                "type": "GlobalReference",
+                "value": "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIec61360/3"
+              }
+            ]
+          },
+          "dataSpecificationContent": {
+            "modelType": "DataSpecificationIec61360",
+            "preferredName": [
+              {
+                "language": "en",
+                "text": "Switch"
+              }
+            ],
+            "definition": [
+              {
+                "language": "en",
+                "text": "Switch defined by IEC 61360"
               }
             ]
           }
