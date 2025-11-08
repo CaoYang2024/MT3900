@@ -1,53 +1,27 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from fastapi import FastAPI, Response
+from fastapi.responses import StreamingResponse
+from src.drivers.csi_camera import camera
 
-"""
-Periodic USB device watcher (poll every 10 sec)
-"""
+app = FastAPI()
 
-import pyudev
-import time
-
-def get_connected_devices(context):
-    """Return a set of currently connected device IDs"""
-    devices = set()
-    for device in context.list_devices(subsystem='usb', DEVTYPE='usb_device'):
-        # 组合 Vendor + Product + Serial 作为唯一标识
-        info = f"{device.get('ID_VENDOR_ID')}-{device.get('ID_MODEL_ID')}-{device.get('ID_SERIAL_SHORT')}"
-        devices.add(info)
-    return devices
+@app.get("/capture")  # ✅ 抓取当前最新 JPEG
+def capture():
+    frame = camera.get_frame()
+    return Response(content=frame, media_type="image/jpeg")
 
 
-def main():
-    context = pyudev.Context()
+@app.get("/stream")   # ✅ 生成 MJPEG streaming
+def stream():
+    def mjpeg_generator():
+        while True:
+            frame = camera.get_frame()
+            if frame:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
 
-    last_devices = get_connected_devices(context)
-    print("✅ 初始 USB 设备列表:")
-    print(last_devices)
-
-    while True:
-        time.sleep(10)    # ⏳ 每隔10秒检查一次
-
-        current_devices = get_connected_devices(context)
-
-        # 新增设备
-        added = current_devices - last_devices
-        # 移除设备
-        removed = last_devices - current_devices
-
-        if added:
-            print("\n🔌 **设备插入:**")
-            for dev in added:
-                print(f"  ➕ {dev}")
-
-        if removed:
-            print("\n❌ **设备移除:**")
-            for dev in removed:
-                print(f"  ➖ {dev}")
-
-        last_devices = current_devices
-
-
-if __name__ == "__main__":
-    print("🚀 USB watcher running (checks every 10s)...")
-    main()
+    return StreamingResponse(
+        mjpeg_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
