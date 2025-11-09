@@ -11,7 +11,7 @@ import sys
 # ✅ Kuksa Databroker Client (works WITHOUT docker network)
 # --------------------------------------------
 class KuksaClient:
-    def __init__(self, server="192.168.0.180:55555"):
+    def __init__(self, server="192.168.137.1:55555"):
         self.server = server
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
@@ -46,7 +46,7 @@ class KuksaClient:
 # ✅ Sync Kuksa → BaSyx AAS Property
 # --------------------------------------------
 class BaSyxSync:
-    def __init__(self, vss_path, aas_property_url, server="192.168.0.180:55555"):
+    def __init__(self, vss_path, aas_property_url, server="192.168.137.1:55555"):
         self.vss_path = vss_path
         self.aas_property_url = aas_property_url
         self.kuksa = KuksaClient(server)

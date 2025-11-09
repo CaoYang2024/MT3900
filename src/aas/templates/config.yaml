@@ -1,16 +1,16 @@
 sensor:
-  name: Ultrasonic_A01A
-  manufacturer: DFRobot
-  type: Ultrasonic
-  datatype: double
-  range: null            
-  voltage: "5V"
-  current: null
-  reference: null
+  name: USBCamera_C920
+  manufacturer: Logitech
+  type: Camera
+  datatype: "image/jpeg"            # 或 "video/mjpeg" / "video/mp4"
+  range: null                       # 摄像头没有固定量程，留 null
+  voltage: "5V"                     # USB 摄像头通常是 5V
+  current: "500mA"                  # USB2 500mA / USB3 900mA，可不填
+  reference: "UVC (USB Video Class)"
 
 
 interface:
-  protocol: "HTTP REST"
-  endpoint: "http://192.168.1.100:8000/read"
-  signal_path: "Vehicle.Chassis.Ultrasonic.Row1.Left.Distance"
+  protocol: "HTTP MJPEG stream"
+  endpoint: "http://192.168.1.100:8000/video"     # python FastAPI / MJPEG streaming endpoint
+  signal_path: "Vehicle.Camera.Front.Image"       # VSS 映射路径
   enable_publishing: true
