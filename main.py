@@ -1,12 +1,7 @@
 # main.py
 
-from src.orchestrator.usb_hotplug import USBHotplugOrchestrator
+from src.orchestrator.usb_hotplug import run_hotplug
 
 if __name__ == "__main__":
-    orchestrator = USBHotplugOrchestrator()
-
-    try:
-        orchestrator.monitor()
-    except KeyboardInterrupt:
-        orchestrator.stop_driver()
-        print("\n🛑 Exit")
+    print("🔌 USB camera orchestrator started")
+    run_hotplug()

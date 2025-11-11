@@ -1,39 +1,75 @@
-# src/orchestrator/usb_hotplug_orchestrator.py
+# src/orchestrator/usb_hotplug.py
 
-import pyudev
-from drivers.usb_camera_driver import USBCameraDriver
-from orchestrator.aas_registry_client import AASRegistryClient
+from pyudev import Context, Monitor, MonitorObserver
+import subprocess, time, os, signal, glob, threading
+
+PROJECT_DIR = "/home/pi/Downloads/MT3900/src/drivers"
+API_PORT = "8000"
+UVICORN_CMD = ["python", "-m", "uvicorn", "camera_driver:app",
+               "--host", "0.0.0.0", "--port", API_PORT,
+               "--app-dir", PROJECT_DIR]
+
+server_proc = None
+debounce_lock = threading.Lock()
 
 
-class USBHotplugOrchestrator:
+def get_first_valid_camera():
+    devs = sorted(glob.glob("/dev/video*"))
+    return devs[0] if devs else None
 
-    def __init__(self):
-        self.context = pyudev.Context()
-        self.driver = USBCameraDriver()
 
-    def start_driver(self):
-        self.driver.start()
+def start_api():
+    global server_proc
+    cam = get_first_valid_camera()
+    if not cam:
+        print("⚠️ no camera available")
+        return
 
-        endpoint = f"http://{self.driver.ip}:{self.driver.port}/stream"
-        aas_file = AASRegistryClient.generate_aas_instance(endpoint)
-        AASRegistryClient.upload_or_update()
-        AASRegistryClient.update_status("Online")
+    print(f"🚀 start API (device={cam})")
 
-    def stop_driver(self):
-        self.driver.stop()
-        AASRegistryClient.update_status("Offline")
+    env = os.environ.copy()
+    env["CAM_DEV"] = cam
 
-    def monitor(self):
-        monitor = pyudev.Monitor.from_netlink(self.context)
-        monitor.filter_by("video4linux")
+    server_proc = subprocess.Popen(UVICORN_CMD, env=env)
 
-        print("👀 Watching USB cameras...")
 
-        for action, device in monitor:
-            print(f"USB EVENT: {action}  dev={device.device_node}")
+def stop_api():
+    global server_proc
+    if not server_proc:
+        return
 
-            if action in ("add", "bind"):
-                self.start_driver()
+    print("🛑 stop API")
+    server_proc.send_signal(signal.SIGTERM)
 
-            elif action in ("remove", "unbind"):
-                self.stop_driver()
+    try:
+        server_proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        print("⚠️ force kill uvicorn")
+        server_proc.kill()
+
+    server_proc = None
+    time.sleep(0.3)
+
+
+def handle_event(_device):
+    if not debounce_lock.acquire(blocking=False):
+        return
+
+    threading.Timer(0.2, debounce_lock.release).start()
+
+    stop_api()
+    start_api()
+
+
+def run_hotplug():
+    start_api()
+
+    context = Context()
+    monitor = Monitor.from_netlink(context)
+    monitor.filter_by(subsystem="video4linux")
+
+    observer = MonitorObserver(monitor, callback=handle_event)
+    observer.start()
+
+    while True:
+        time.sleep(1)

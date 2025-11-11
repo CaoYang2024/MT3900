@@ -1,69 +1,71 @@
-# src/drivers/usb_camera_driver.py
-from fastapi import FastAPI
-from starlette.responses import StreamingResponse
-import subprocess
+# src/drivers/usb_camera.py
+import time
 import threading
+from typing import Optional
 import cv2
-import uvicorn
+import numpy as np
 
 
 class USBCameraDriver:
-    def __init__(self, port: int = 8000):
-        self.port = port
-        self.ip = "0.0.0.0"   # or detect local IP
-        self.running = False
+    def __init__(self):
+        self._cap: Optional[cv2.VideoCapture] = None
+        self._dev = None
+        self._last: Optional[np.ndarray] = None
+        self._thread = None
+        self._running = False
+        self._lock = threading.Lock()
 
-    def _camera_loop(self):
-        self.cap = cv2.VideoCapture(0)
-        self.running = True
-        while self.running:
-            ok, frame = self.cap.read()
-            if not ok:
-                continue
-            _, jpeg = cv2.imencode(".jpg", frame)
-            self.frame_bytes = jpeg.tobytes()
-        self.cap.release()
+    def open(self, dev: str, width: int = 0, height: int = 0) -> bool:
+        dev = dev if dev.startswith("/dev/") else f"/dev/{dev}"
+        with self._lock:
+            if self._cap and self._dev == dev:
+                return True
 
-    def get_app(self):
-        app = FastAPI()
+            self._close_locked()
+            cap = cv2.VideoCapture(dev)
+            if not cap.isOpened():
+                return False
 
-        @app.get("/stream")
-        def stream():
-            return StreamingResponse(
-                self._frame_gen(),
-                media_type="multipart/x-mixed-replace; boundary=frame"
-            )
+            if width > 0: cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            if height > 0: cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
-        @app.on_event("startup")
-        def startup():
-            threading.Thread(target=self._camera_loop, daemon=True).start()
+            self._cap = cap
+            self._dev = dev
+            self._running = True
+            self._thread = threading.Thread(target=self._reader, daemon=True)
+            self._thread.start()
+            return True
 
-        @app.on_event("shutdown")
-        def shutdown():
-            self.running = False
+    def _reader(self):
+        while self._running and self._cap:
+            ok, frame = self._cap.read()
+            if ok:
+                with self._lock:
+                    self._last = frame
+            else:
+                time.sleep(0.02)
 
-        return app
+        if self._cap:
+            self._cap.release()
+            self._cap = None
 
-    def _frame_gen(self):
-        while self.running:
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" +
-                self.frame_bytes +
-                b"\r\n"
-            )
+    def get_frame(self) -> Optional[np.ndarray]:
+        with self._lock:
+            return None if self._last is None else self._last.copy()
 
-    def start(self):
-        """启动 FastAPI Camera server"""
-        print("🎥 [USBCameraDriver] Starting FastAPI server...")
-        app = self.get_app()
-        self.server = subprocess.Popen(
-            ["python3", "-m", "uvicorn", "src.drivers.usb_camera_driver:driver_app", "--host", "0.0.0.0", f"--port={self.port}"],
-        )
+    def close(self):
+        with self._lock:
+            self._close_locked()
 
-    def stop(self):
-        """停止 Camera server"""
-        print("🛑 [USBCameraDriver] Stopping Camera server...")
-        self.running = False
-        if self.cap:
-            self.cap.release()
+    def _close_locked(self):
+        self._running = False
+        th, cap = self._thread, self._cap
+        self._thread = None
+        self._cap = None
+        self._last = None
+        self._dev = None
+
+        if th and th.is_alive():
+            th.join(timeout=1.0)
+        if cap:
+            cap.release()
