@@ -168,16 +168,17 @@ def run_hotplug():
     print("🔌 Plug & Play USB Camera → AAS")
     print("🔌 USB Camera Hotplug Monitor Started ...")
 
-    # 启动时检查是否已有摄像头
-    existing = sorted(glob.glob("/dev/video*"))
-    if existing:
-        fake = type("Fake", (), {})()
-        fake.action = "add"
-        fake.device_node = existing[0]
-        fake.properties = {}
-        handle_event(fake)
-
+    # 检查当前系统里真正已连接的设备
     context = Context()
+
+    for dev in context.list_devices(subsystem="video4linux"):
+        if dev.device_node and "usb" in dev.sys_path.lower():
+            fake = type("Fake", (), {})()
+            fake.action = "add"
+            fake.device_node = dev.device_node
+            fake.properties = dev.properties
+            handle_event(fake)
+
     monitor = Monitor.from_netlink(context)
     monitor.filter_by(subsystem="video4linux")
 
