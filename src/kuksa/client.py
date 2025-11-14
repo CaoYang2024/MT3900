@@ -14,7 +14,7 @@ class KuksaClient:
 
     def _run(self, args):
         """
-        Run docker CLI, capture ONLY stdout
+        Run docker CLI, capture ONLY stdout11
         """
         cmd = [
             "docker", "run", "-t", "--rm",
