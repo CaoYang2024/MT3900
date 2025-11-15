@@ -59,3 +59,61 @@ def put_value(aas_id: str, id_short: str, value):
         print(f"✅ PUT {id_short}={value}")
     else:
         print(f"❌ PUT failed {r.status_code}: {r.text}")
+def mark_connected(aas_id: str):
+    """
+    Update AssetInterface.Connected = true
+    """
+    props = discover_properties_for_shell(BASYX_HOST, aas_id)
+    if "AssetInterface" not in props:
+        print(f"❌ Cannot set Connected: AssetInterface not found in AAS {aas_id}")
+        return
+
+    ai = props["AssetInterface"]
+    if "Connected" not in ai:
+        print("❌ Connected property missing in AAS")
+        return
+
+    url = ai["Connected"]
+
+    body = {
+        "idShort": "Connected",
+        "modelType": "Property",
+        "valueType": "xs:boolean",
+        "value": True
+    }
+
+    r = requests.put(url, json=body)
+    if r.status_code in (200, 204):
+        print(f"🔌 AAS Connected = true [{aas_id}]")
+    else:
+        print(f"❌ Connected PUT failed {r.status_code}: {r.text}")
+
+
+def mark_disconnected(aas_id: str):
+    """
+    Update AssetInterface.Connected = false
+    """
+    props = discover_properties_for_shell(BASYX_HOST, aas_id)
+    if "AssetInterface" not in props:
+        print(f"❌ Cannot set Disconnected: AssetInterface not found in AAS {aas_id}")
+        return
+
+    ai = props["AssetInterface"]
+    if "Connected" not in ai:
+        print("❌ Connected property missing in AAS")
+        return
+
+    url = ai["Connected"]
+
+    body = {
+        "idShort": "Connected",
+        "modelType": "Property",
+        "valueType": "xs:boolean",
+        "value": False
+    }
+
+    r = requests.put(url, json=body)
+    if r.status_code in (200, 204):
+        print(f"🔌 AAS Connected = false [{aas_id}]")
+    else:
+        print(f"❌ Disconnected PUT failed {r.status_code}: {r.text}")
