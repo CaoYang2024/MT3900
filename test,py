@@ -1,0 +1,32 @@
+import minimalmodbus
+import serial
+import time
+
+PORT = "/dev/ttyACM0"   # 你的 RS485 转 USB 是 ACM0
+SLAVE = 1               # 默认地址
+BAUD = 9600
+REGISTER = 1            # 大多数 RS485 超声波测距寄存器都是 1
+
+def main():
+    print("Ultrasonic test started...")
+
+    ins = minimalmodbus.Instrument(PORT, SLAVE)
+    ins.serial.baudrate = BAUD
+    ins.serial.bytesize = 8
+    ins.serial.parity = serial.PARITY_NONE
+    ins.serial.stopbits = 1
+    ins.serial.timeout = 0.3
+    ins.mode = minimalmodbus.MODE_RTU
+
+    while True:
+        try:
+            # FC4 (Read Input Register)
+            mm = ins.read_register(REGISTER, 0, functioncode=4)
+            print(f"Distance: {mm} mm ({mm/1000:.3f} m)")
+        except Exception as e:
+            print(f"Read failed: {e}")
+
+        time.sleep(0.3)
+
+if __name__ == "__main__":
+    main()
