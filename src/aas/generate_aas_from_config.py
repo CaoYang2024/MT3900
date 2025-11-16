@@ -91,7 +91,7 @@ def build_submodel_interface(aas_id: str, cfg: dict):
     elements = []
 
     # ----- Common Field -----
-    elements.append(prop_bool("Connected", itf.get("connected", False)))
+    elements.append(prop_bool("Connected", itf.get("connected", True)))
 
     # ===================================================================
     # Ultrasonic Sensor

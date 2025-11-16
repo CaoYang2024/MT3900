@@ -5,7 +5,8 @@ import threading
 
 class KuksaClient:
     """
-    静默 publish，不阻塞 Ctrl+C，不打印任何内容
+    Docker-based Kuksa Databroker publisher (silent mode).
+    Uses: docker run -it --rm <image> publish <signal> <value>
     """
 
     def __init__(self, server="192.168.137.1:55555"):
@@ -13,6 +14,7 @@ class KuksaClient:
         self.image = "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main"
 
     def publish_async(self, signal, value):
+        """Publish in a non-blocking background thread."""
         t = threading.Thread(
             target=self._publish_blocking,
             args=(signal, value),
@@ -21,18 +23,22 @@ class KuksaClient:
         t.start()
 
     def _publish_blocking(self, signal, value):
-        """完全静默执行 publish"""
+        """Execute Docker publish command silently."""
 
         cmd = [
             "docker", "run",
+            "-i",            # keep STDIN open
+            "-t",            # allocate TTY (required for OK output behavior)
             "--rm",
             self.image,
             "--server", self.server,
             "--protocol", "kuksa.val.v1",
-            "publish", signal, str(value)
+            "publish",
+            signal,
+            str(value)
         ]
 
-        # 不要打印、不占用 terminal，不影响 Ctrl+C
+        # Silent execution
         subprocess.run(
             cmd,
             stdout=subprocess.DEVNULL,
