@@ -1,59 +1,76 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import glob
-import subprocess
+import pyudev
 
-def list_serial_ports():
-    print("\n==============================")
-    print("🔵 检测树莓派串口设备")
-    print("==============================")
+def dump_basic(dev, indent=""):
+    print(f"{indent}Device: {dev.device_path}")
+    print(f"{indent}Subsystem: {dev.subsystem}")
+    print(f"{indent}Device type: {dev.device_type}")
+    print(f"{indent}Devnode: {dev.device_node}")
+    print("")
 
-    ports = glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyAMA*")
-    if ports:
-        print("找到串口设备:")
-        for p in ports:
-            print(f"  • {p}")
-    else:
-        print("⚠️ 没有找到 ttyACM*/ttyUSB*/ttyAMA* 设备")
+def dump_attributes(dev, indent=""):
+    print(f"{indent}Attributes:")
+    for attr in dev.attributes.available_attributes:
+        try:
+            val = dev.attributes.get(attr)
+            if val is not None:
+                val = val.decode(errors="ignore")
+            print(f"{indent}  {attr}: {val}")
+        except:
+            pass
+    print("")
 
-def print_dmesg():
-    print("\n==============================")
-    print("🔵 打印与串口相关的 dmesg 日志")
-    print("==============================")
-
-    try:
-        output = subprocess.check_output("dmesg | grep -i tty", shell=True, text=True)
-        print(output if output.strip() else "⚠️ dmesg 中未找到 tty 相关信息")
-    except Exception as e:
-        print(f"读取 dmesg 失败: {e}")
-
-def guess_port():
-    print("\n==============================")
-    print("🔵 自动推断可能的超声波串口")
-    print("==============================")
-
-    # 优先顺序：USB → ACM → AMA
-    candidates = (
-        glob.glob("/dev/ttyUSB*") +
-        glob.glob("/dev/ttyACM*") +
-        glob.glob("/dev/ttyAMA*")
-    )
-
-    if not candidates:
-        print("⚠️ 没有可用串口")
-        return
-
-    print("可能的串口候选（按优先级排序）:")
-    for c in candidates:
-        print(f"  • {c}")
-
-    print("\n👉 最有可能的端口是:", candidates[0])
+def dump_env(dev, indent=""):
+    print(f"{indent}Environment:")
+    for k, v in dev.items():
+        print(f"{indent}  {k}: {v}")
+    print("")
 
 def main():
-    list_serial_ports()
-    print_dmesg()
-    guess_port()
+    ctx = pyudev.Context()
+
+    print("\n========== USB CAMERA DEVICES ==========\n")
+
+    for dev in ctx.list_devices(subsystem="video4linux"):
+        devnode = dev.device_node
+        if not devnode:
+            continue
+
+        print("========================================")
+        print(f"🎥 Found video device: {devnode}")
+        print("----------------------------------------\n")
+
+        # 打印 video 节点信息
+        print("📌 video4linux node info:")
+        dump_basic(dev, "  ")
+        dump_attributes(dev, "  ")
+        dump_env(dev, "  ")
+
+        # 找到 USB 父设备
+        print("🔼 Searching USB parent...")
+        parent = dev
+        usb_dev = None
+
+        while parent:
+            if parent.subsystem == "usb" and parent.device_type == "usb_device":
+                usb_dev = parent
+                break
+            parent = parent.parent
+
+        if usb_dev is None:
+            print("❌ This video device is NOT a USB camera (probably CSI camera).")
+            print("")
+            continue
+
+        print("\n🎉 USB camera parent found!")
+        print("📌 USB device info:")
+        dump_basic(usb_dev, "  ")
+        dump_attributes(usb_dev, "  ")
+        dump_env(usb_dev, "  ")
+
+        print("========================================\n")
 
 if __name__ == "__main__":
     main()
