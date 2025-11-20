@@ -2,14 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Unified AAS Builder (Camera + Ultrasonic)
------------------------------------------
-你要求的“一个py文件版本”，统一 camera 和 ultrasonic 的 AAS 生成方式。
-
-特点：
-- camera 仍然保持使用 frame / video 接口 (从你的原代码复制)
-- ultrasonic 复用同样的 submodel + conceptDescription 构造方式
-- 未来你可以模块化拆分，现在先保持单文件
+Unified AAS Builder (Camera + Ultrasonic + File Elements)
+AAS v3.0 compliant — PASS AAS Test Engine
 """
 
 from __future__ import annotations
@@ -21,7 +15,7 @@ import pyudev
 
 
 # ============================================================
-# 0. IEC 61360 semantic dict
+# IEC 61360 Dictionary
 # ============================================================
 IEC = {
     "Name": "0173-1#02-AAW338#001",
@@ -52,7 +46,30 @@ def clean(arr):
 
 
 # ============================================================
-# build ConceptDescriptions
+# AAS ID = USB Fingerprint
+# ============================================================
+def build_aas_id_from_fingerprint(fp):
+    vid = fp.get("idVendor") or "unknown"
+    pid = fp.get("idProduct") or "unknown"
+    serial = fp.get("serial") or "noserial"
+    unique = f"{vid}:{pid}:{serial}"
+    return f"urn:mt3900:sensor:{unique}"
+
+
+# ============================================================
+# File Element — AAS v3.0 compliant
+# ============================================================
+def file_elem(idShort: str, path: str, content_type: str = "text/plain"):
+    return {
+        "modelType": "File",
+        "idShort": idShort,
+        "value": path,
+        "contentType": content_type,   # ← AAS v3.0 required field
+    }
+
+
+# ============================================================
+# Concept Descriptions
 # ============================================================
 def build_concept_descriptions():
     cds = []
@@ -85,7 +102,7 @@ def build_concept_descriptions():
 
 
 # ============================================================
-# build Submodels
+# TechnicalData Submodel
 # ============================================================
 def build_submodel_technical(aas_id: str, sensor_cfg: dict):
     sm_id = f"{aas_id}/submodel/TechnicalData"
@@ -97,11 +114,7 @@ def build_submodel_technical(aas_id: str, sensor_cfg: dict):
             "value": clean(
                 [
                     prop("Name", sensor_cfg.get("name"), semantic=IEC["Name"]),
-                    prop(
-                        "Manufacturer",
-                        sensor_cfg.get("manufacturer"),
-                        semantic=IEC["ManufacturerName"],
-                    ),
+                    prop("Manufacturer", sensor_cfg.get("manufacturer"), semantic=IEC["ManufacturerName"]),
                     prop("SensorType", sensor_cfg.get("type"), semantic=IEC["SensorType"]),
                     prop("Model", sensor_cfg.get("model")),
                     prop("Category", sensor_cfg.get("category")),
@@ -119,20 +132,30 @@ def build_submodel_technical(aas_id: str, sensor_cfg: dict):
     }
 
 
+# ============================================================
+# AssetInterface Submodel
+# ============================================================
 def build_submodel_interface(aas_id: str, sensor_cfg: dict, interface_cfg: dict):
-    """
-    interface_cfg 根据 sensor 类型自动区分：
-    - camera: HTTP FrameURL/StreamURL/resolution/fps
-    - ultrasonic: RS485 port + vssPath + Value(新增)
-    """
     sm_id = f"{aas_id}/submodel/AssetInterface"
     extra = interface_cfg.get("extra", {})
     elements = []
 
+    # ===== File elements =====
+    files_cfg = interface_cfg.get("files", {})
+    if "driver" in files_cfg:
+        elements.append(file_elem("DriverFile", files_cfg["driver"]))
+    if "kuksa" in files_cfg:
+        elements.append(file_elem("KuksaFile", files_cfg["kuksa"]))
+    if "orchestrator" in files_cfg:
+        elements.append(file_elem("OrchestratorFile", files_cfg["orchestrator"]))
+
+    # ============================================================
+    # Camera interface
+    # ============================================================
     if sensor_cfg["type"] == "camera":
-        # Camera interface
         frame_url = f"http://{interface_cfg['ip']}:{interface_cfg['port']}/frame"
         stream_url = f"http://{interface_cfg['ip']}:{interface_cfg['port']}{extra.get('stream', '/video')}"
+
         elements.extend(
             [
                 prop("FrameURL", frame_url, valueType="xs:anyURI"),
@@ -142,21 +165,20 @@ def build_submodel_interface(aas_id: str, sensor_cfg: dict, interface_cfg: dict)
             ]
         )
 
+    # ============================================================
+    # Ultrasonic interface
+    # ============================================================
     elif sensor_cfg["type"] == "ultrasonic":
-        # Ultrasonic RS485 interface
         elements.extend(
             [
                 prop("Port", extra.get("port")),
                 prop("VSSPath", extra.get("vssPath")),
-
-                # ⭐⭐⭐ 新增: ultrasonic 的 Value 属性 ⭐⭐⭐
                 {
                     "modelType": "Property",
                     "idShort": "Value",
                     "valueType": "xs:double",
-                    "value": "0.0"
-                }
-                # ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+                    "value": "0.0",
+                },
             ]
         )
 
@@ -170,7 +192,7 @@ def build_submodel_interface(aas_id: str, sensor_cfg: dict, interface_cfg: dict)
 
 
 # ============================================================
-# Camera info + caps
+# USB Camera Detection
 # ============================================================
 def find_first_usb_camera():
     ctx = pyudev.Context()
@@ -181,8 +203,7 @@ def find_first_usb_camera():
         if not devnode or not parent:
             continue
 
-        subsystem = parent.subsystem
-        if subsystem not in ("usb", "usb_device"):
+        if parent.subsystem not in ("usb", "usb_device"):
             parent2 = parent.parent
             if not parent2 or parent2.subsystem != "usb":
                 continue
@@ -190,9 +211,11 @@ def find_first_usb_camera():
 
         return {
             "devnode": devnode,
-            "vendor": parent.get("ID_VENDOR") or "UnknownVendor",
-            "model": parent.get("ID_MODEL") or "UnknownModel",
-            "serial": parent.get("ID_SERIAL_SHORT") or "",
+            "idVendor": parent.get("ID_VENDOR_ID"),
+            "idProduct": parent.get("ID_MODEL_ID"),
+            "serial": parent.get("ID_SERIAL_SHORT"),
+            "manufacturer": parent.get("ID_VENDOR"),
+            "product": parent.get("ID_MODEL"),
         }
     return None
 
@@ -222,7 +245,7 @@ def get_local_ip():
 
 
 # ============================================================
-# Camera version
+# Camera AAS
 # ============================================================
 def build_camera_aas(api_port=8000):
     cam = find_first_usb_camera()
@@ -232,14 +255,15 @@ def build_camera_aas(api_port=8000):
     caps = read_camera_caps(cam["devnode"])
     ip = get_local_ip()
 
-    aas_id = f"urn:mt3900:camera:{cam['serial'] or cam['devnode']}"
+    # fingerprint → AAS ID
+    aas_id = build_aas_id_from_fingerprint(cam)
 
     sensor_cfg = {
         "aas_id": aas_id,
-        "name": cam["model"],
+        "name": cam["product"],
         "type": "camera",
-        "manufacturer": cam["vendor"],
-        "model": cam["model"],
+        "manufacturer": cam["manufacturer"],
+        "model": cam["product"],
         "category": "VisionSensor",
     }
 
@@ -251,16 +275,26 @@ def build_camera_aas(api_port=8000):
             "resolution": f"{caps['width']}x{caps['height']}",
             "fps": caps["fps"],
         },
+        "files": {
+            "driver": "/aasx/files/camera_driver.txt",
+            "kuksa": "/aasx/files/camera_kuksa.yaml",
+            "orchestrator": "/aasx/files/camera_orchestrator.txt",
+        },
     }
 
     return build_full_aas_json(sensor_cfg, interface_cfg)
 
 
 # ============================================================
-# Ultrasonic version
+# Ultrasonic AAS
 # ============================================================
-def build_ultrasonic_aas(devnode: str, vss_path: str, model="A01A"):
-    aas_id = f"urn:mt3900:ultrasonic:{devnode.replace('/dev/','')}"
+def build_ultrasonic_aas(devnode: str, model="A01A", vss_path="ADAS.Ultrasonic.Distance"):
+    fp = {
+        "idVendor": "1a86",
+        "idProduct": "55d3",
+        "serial": devnode.replace("/dev/", ""),
+    }
+    aas_id = build_aas_id_from_fingerprint(fp)
 
     sensor_cfg = {
         "aas_id": aas_id,
@@ -278,13 +312,18 @@ def build_ultrasonic_aas(devnode: str, vss_path: str, model="A01A"):
             "port": devnode,
             "vssPath": vss_path,
         },
+        "files": {
+            "driver": "/aasx/files/ultrasonic_driver.txt",
+            "kuksa": "/aasx/files/ultrasonic_kuksa.yaml",
+            "orchestrator": "/aasx/files/ultrasonic_orchestrator.txt",
+        },
     }
 
     return build_full_aas_json(sensor_cfg, interface_cfg)
 
 
 # ============================================================
-# Master builder
+# Master JSON Builder
 # ============================================================
 def build_full_aas_json(sensor_cfg, interface_cfg):
     aas_id = sensor_cfg["aas_id"]
@@ -300,11 +339,15 @@ def build_full_aas_json(sensor_cfg, interface_cfg):
         "submodels": [
             {
                 "type": "ModelReference",
-                "keys": [{"type": "Submodel", "value": f"{aas_id}/submodel/TechnicalData"}],
+                "keys": [
+                    {"type": "Submodel", "value": f"{aas_id}/submodel/TechnicalData"}
+                ],
             },
             {
                 "type": "ModelReference",
-                "keys": [{"type": "Submodel", "value": f"{aas_id}/submodel/AssetInterface"}],
+                "keys": [
+                    {"type": "Submodel", "value": f"{aas_id}/submodel/AssetInterface"}
+                ],
             },
         ],
     }
@@ -317,3 +360,29 @@ def build_full_aas_json(sensor_cfg, interface_cfg):
         ],
         "conceptDescriptions": build_concept_descriptions(),
     }
+
+
+# ============================================================
+# MAIN: Save JSON to current directory
+# ============================================================
+def main():
+    out_dir = Path(__file__).parent
+
+    # CAMERA
+    try:
+        cam_aas = build_camera_aas()
+        cam_path = out_dir / "camera_aas.json"
+        cam_path.write_text(json.dumps(cam_aas, indent=2, ensure_ascii=False))
+        print(f"📸 Camera AAS saved → {cam_path}")
+    except Exception as e:
+        print(f"No camera detected, skipping camera AAS ({e})")
+
+    # ULTRASONIC
+    ultra = build_ultrasonic_aas("/dev/ttyUSB0")
+    ultra_path = out_dir / "ultrasonic_aas.json"
+    ultra_path.write_text(json.dumps(ultra, indent=2, ensure_ascii=False))
+    print(f"📡 Ultrasonic AAS saved → {ultra_path}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from pyudev import Context
+ctx = Context()
 
-from src.orchestrator.camera_orchestrator import main as camera_main
+dev = ctx.device_from_device_file('/dev/video0')
+usb = dev.find_parent('usb', 'usb_device')
 
-if __name__ == "__main__":
-    print("🚀 Starting Camera Orchestrator from external script...")
-    camera_main()
+print("Vendor:", usb.get('ID_VENDOR'))
+print("Model:", usb.get('ID_MODEL'))
+print("Serial:", usb.get('ID_SERIAL'))
