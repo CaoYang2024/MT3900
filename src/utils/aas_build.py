@@ -2,18 +2,23 @@
 # -*- coding: utf-8 -*-
 
 """
-Unified AAS Builder (Camera + Ultrasonic)
-=========================================
-规则约定：
-- 全局资产ID (globalAssetId) = 指纹ID = AAS 的 id
-- 统一格式：
-    urn:mt3900:sensor:<vendor>:<product>:<serial>
+Unified AAS Builder (Camera + Ultrasonic + Empty Template)
+==========================================================
 
-例如：
-    urn:mt3900:sensor:05a3:9331:Ucamera001
-    urn:mt3900:sensor:1a86:55d3:594C037906
+Rules:
+- The globalAssetId is also the AAS ID.
+- ID format is fixed:
+      urn:mt3900:sensor:<vendor>:<product>:<serial>
 
-只保留一个 File 元素：DriverFile
+Examples:
+      urn:mt3900:sensor:05a3:9331:Ucamera001
+      urn:mt3900:sensor:1a86:55d3:594C037906
+
+This builder:
+  ✓ Generates Camera AAS
+  ✓ Generates Ultrasonic AAS
+  ✓ Generates an empty template for new sensors
+  ✓ Keeps only one File element: DriverFile
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ import pyudev
 
 
 # ============================================================
-# IEC Dictionary
+# IEC Dictionary (common semantic IDs)
 # ============================================================
 IEC = {
     "Name": "0173-1#02-AAW338#001",
@@ -42,6 +47,7 @@ def semantic_ref(iri: str):
 
 
 def prop(idShort, value, valueType="xs:string", semantic=None):
+    """Create a Property element with optional semantic link."""
     return {
         "modelType": "Property",
         "idShort": idShort,
@@ -52,49 +58,42 @@ def prop(idShort, value, valueType="xs:string", semantic=None):
 
 
 def clean(arr):
+    """Remove None from list."""
     return [x for x in arr if x is not None]
 
 
 # ============================================================
-# USB Fingerprint Helper
+# USB Fingerprint
 # ============================================================
 def build_fingerprint(dev):
     """
-    从 pyudev 设备提取 vendor/product/serial
-    这里用 attributes，是树莓派上稳定可用的方式。
+    Extract vendor/product/serial from pyudev USB device.
+    Using attributes ensures stability on Raspberry Pi.
     """
     vendor = dev.attributes.get("idVendor")
     product = dev.attributes.get("idProduct")
     serial = dev.attributes.get("serial")
 
-    if vendor:
-        vendor = vendor.decode()
-    if product:
-        product = product.decode()
-    if serial:
-        serial = serial.decode()
-
-    # 防止出现 None:None:None
-    vendor = vendor or "unknownVendor"
-    product = product or "unknownProduct"
-    serial = serial or "unknownSerial"
+    vendor = vendor.decode() if vendor else "unknownVendor"
+    product = product.decode() if product else "unknownProduct"
+    serial = serial.decode() if serial else "unknownSerial"
 
     return {"vendor": vendor, "product": product, "serial": serial}
 
 
 def build_global_asset_id(fp):
-    """
-    ✅ 这是全局资产ID (globalAssetId)，同时也作为 AAS 的 id 使用
-    规则：urn:mt3900:sensor:vendor:product:serial
-    """
+    """URN: urn:mt3900:sensor:vendor:product:serial"""
     return f"urn:mt3900:sensor:{fp['vendor']}:{fp['product']}:{fp['serial']}"
 
 
 # ============================================================
-# USB DEVICE SCANNING
+# USB Device Scanning
 # ============================================================
 def list_real_usb_devices():
-    """只返回真实传感器 USB 设备（排除 root hub / hub）。"""
+    """
+    Return real USB sensor devices.
+    Skip Linux root hubs and VIA internal hubs.
+    """
     ctx = pyudev.Context()
     result = []
 
@@ -104,12 +103,7 @@ def list_real_usb_devices():
             continue
         vid = vid.decode()
 
-        # Skip Linux root hub
-        if vid == "1d6b":
-            continue
-
-        # Skip VIA internal hub
-        if vid == "2109":
+        if vid in ["1d6b", "2109"]:  # Linux root hub / VIA hub
             continue
 
         result.append(dev)
@@ -118,7 +112,10 @@ def list_real_usb_devices():
 
 
 def find_camera_device():
-    """找到摄像头对应的真正 USB 设备 + 指纹（不再 Unknown）。"""
+    """
+    Locate the correct USB device behind the /dev/video* node.
+    This ensures proper vendor/product/serial.
+    """
     ctx = pyudev.Context()
 
     for dev in ctx.list_devices(subsystem="video4linux"):
@@ -126,10 +123,10 @@ def find_camera_device():
         if not devnode:
             continue
 
-        # 🔥 一层一层向上找真正的 USB Device（带 idVendor/idProduct/serial）
         parent = dev
         usb_dev = None
 
+        # Walk upward to find actual USB device
         while parent:
             if parent.subsystem == "usb" and parent.device_type == "usb_device":
                 usb_dev = parent
@@ -139,7 +136,6 @@ def find_camera_device():
         if not usb_dev:
             continue
 
-        # 指纹
         fp = build_fingerprint(usb_dev)
         fp["devnode"] = devnode
 
@@ -149,8 +145,7 @@ def find_camera_device():
         fp["manufacturer"] = man.decode() if man else "Unknown"
         fp["name"] = prod.decode() if prod else "Unknown"
 
-        # 调试输出一下，方便你确认
-        print("🎥 Camera found:")
+        print("🎥 Camera detected:")
         print("  DevNode      :", devnode)
         print("  Vendor       :", fp['vendor'])
         print("  Product      :", fp['product'])
@@ -164,13 +159,12 @@ def find_camera_device():
 
 
 def find_ultrasonic_device():
-    """找到带 ttyACM/ttyUSB 的 USB 串口设备（超声波传感器）。"""
+    """Look for USB-to-serial devices providing ttyUSB/ttyACM."""
     devs = list_real_usb_devices()
 
     for dev in devs:
         fp = build_fingerprint(dev)
 
-        # 找 tty 子节点
         for ch in dev.children:
             if ch.device_node and ("ttyACM" in ch.device_node or "ttyUSB" in ch.device_node):
                 fp["port"] = ch.device_node
@@ -183,6 +177,7 @@ def find_ultrasonic_device():
 # Camera Info
 # ============================================================
 def read_camera_caps(devnode):
+    """Read resolution and FPS from camera using OpenCV."""
     cap = cv2.VideoCapture(devnode)
     if not cap.isOpened():
         return {"width": 640, "height": 480, "fps": 30}
@@ -190,12 +185,13 @@ def read_camera_caps(devnode):
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 480)
     fps = int(cap.get(cv2.CAP_PROP_FPS) or 30)
-
     cap.release()
+
     return {"width": w, "height": h, "fps": fps}
 
 
 def get_ip():
+    """Get local IP address of Raspberry Pi."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))
@@ -210,6 +206,7 @@ def get_ip():
 # Build Submodels
 # ============================================================
 def build_sm_technical(global_asset_id, cfg):
+    """Build TechnicalData submodel."""
     smid = f"{global_asset_id}/submodel/TechnicalData"
     return {
         "modelType": "Submodel",
@@ -235,12 +232,13 @@ def build_sm_technical(global_asset_id, cfg):
 
 
 def build_sm_interface(global_asset_id, sensor_cfg, interface_cfg):
+    """Build AssetInterface submodel with DriverFile + sensor specific elements."""
     smid = f"{global_asset_id}/submodel/AssetInterface"
     extra = interface_cfg["extra"]
 
     elements = []
 
-    # ===== ONLY ONE FILE ELEMENT =====
+    # Only one File element
     if "driver" in interface_cfg["files"]:
         elements.append(
             {
@@ -251,7 +249,6 @@ def build_sm_interface(global_asset_id, sensor_cfg, interface_cfg):
             }
         )
 
-    # Camera elements
     if sensor_cfg["type"] == "camera":
         frame = f"http://{interface_cfg['ip']}:{interface_cfg['port']}/frame"
         stream = f"http://{interface_cfg['ip']}:{interface_cfg['port']}{extra['stream']}"
@@ -263,7 +260,6 @@ def build_sm_interface(global_asset_id, sensor_cfg, interface_cfg):
             prop("FPS", extra["fps"], "xs:int"),
         ]
 
-    # Ultrasonic
     if sensor_cfg["type"] == "ultrasonic":
         elements += [
             prop("Port", extra["port"]),
@@ -281,14 +277,10 @@ def build_sm_interface(global_asset_id, sensor_cfg, interface_cfg):
 
 
 # ============================================================
-# AAS Assembly
+# Build AAS
 # ============================================================
 def build_full(global_asset_id, sensor_cfg, interface_cfg):
-    """
-    ⚠ 注意：
-    - AAS.id == assetInformation.globalAssetId == global_asset_id
-    - global_asset_id = urn:mt3900:sensor:vendor:product:serial
-    """
+    """Assemble complete AAS structure."""
     shell = {
         "modelType": "AssetAdministrationShell",
         "id": global_asset_id,
@@ -298,14 +290,8 @@ def build_full(global_asset_id, sensor_cfg, interface_cfg):
             "globalAssetId": global_asset_id,
         },
         "submodels": [
-            {
-                "type": "ModelReference",
-                "keys": [{"type": "Submodel", "value": f"{global_asset_id}/submodel/TechnicalData"}],
-            },
-            {
-                "type": "ModelReference",
-                "keys": [{"type": "Submodel", "value": f"{global_asset_id}/submodel/AssetInterface"}],
-            },
+            {"type": "ModelReference", "keys": [{"type": "Submodel", "value": f"{global_asset_id}/submodel/TechnicalData"}]},
+            {"type": "ModelReference", "keys": [{"type": "Submodel", "value": f"{global_asset_id}/submodel/AssetInterface"}]},
         ],
     }
 
@@ -316,6 +302,77 @@ def build_full(global_asset_id, sensor_cfg, interface_cfg):
             build_sm_interface(global_asset_id, sensor_cfg, interface_cfg),
         ],
     }
+
+
+# ============================================================
+# New Sensor Empty Template
+# ============================================================
+def build_empty_template():
+    """
+    Generate a completely empty AAS template so new sensors (Radar/Lidar/IMU)
+    can be easily added.
+    """
+    template = {
+        "assetAdministrationShells": [
+            {
+                "modelType": "AssetAdministrationShell",
+                "id": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL",
+                "idShort": "AAS_NewSensor",
+                "assetInformation": {
+                    "assetKind": "Instance",
+                    "globalAssetId": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL"
+                },
+                "submodels": [
+                    {
+                        "type": "ModelReference",
+                        "keys": [
+                            {
+                                "type": "Submodel",
+                                "value": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL/submodel/TechnicalData"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "ModelReference",
+                        "keys": [
+                            {
+                                "type": "Submodel",
+                                "value": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL/submodel/AssetInterface"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "submodels": [
+            {
+                "modelType": "Submodel",
+                "id": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL/submodel/TechnicalData",
+                "idShort": "TechnicalData",
+                "kind": "Instance",
+                "submodelElements": []
+            },
+            {
+                "modelType": "Submodel",
+                "id": "urn:mt3900:sensor:VENDOR:PRODUCT:SERIAL/submodel/AssetInterface",
+                "idShort": "AssetInterface",
+                "kind": "Instance",
+                "submodelElements": [
+                    {
+                        "modelType": "File",
+                        "idShort": "DriverFile",
+                        "value": "",
+                        "contentType": "text/plain"
+                    }
+                ]
+            }
+        ]
+    }
+
+    Path("new_sensor_template.json").write_text(
+        json.dumps(template, indent=2)
+    )
+    print("📄 New sensor template saved → new_sensor_template.json")
 
 
 # ============================================================
@@ -396,7 +453,7 @@ def build_ultrasonic(vss_path="Vehicle.ADAS.ParkAssist.Ultrasonic.Front.Center.D
 def main():
     out = Path(__file__).parent
 
-    # CAMERA
+    # Build CAMERA AAS
     try:
         cam = build_camera()
         (out / "camera_aas.json").write_text(json.dumps(cam, indent=2))
@@ -404,13 +461,16 @@ def main():
     except Exception as e:
         print("⚠ No camera AAS:", e)
 
-    # ULTRASONIC
+    # Build ULTRASONIC AAS
     try:
         us = build_ultrasonic()
         (out / "ultrasonic_aas.json").write_text(json.dumps(us, indent=2))
         print("📡 Ultrasonic AAS generated.")
     except Exception as e:
         print("⚠ No ultrasonic AAS:", e)
+
+    # Build New Sensor Template
+    build_empty_template()
 
 
 if __name__ == "__main__":
