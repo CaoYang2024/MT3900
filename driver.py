@@ -2,39 +2,49 @@
 # -*- coding: utf-8 -*-
 
 """
-Single-file Ultrasonic Driver (Debug PUT version)
--------------------------------------------------
-✔ 打印PUT状态码和服务器返回内容（定位错误）
+Ultrasonic Driver v3 — AAS AUTO-CONFIG
+--------------------------------------
+✔ AAS_ID 从环境变量读取（orchestrator 注入）
+✔ 自动从 AAS AssetInterface 获取:
+    - Port          (/dev/ttyACM0)
+    - VSSPath       (Vehicle.ADAS....)
+✔ PUT Value → AAS
+✔ publish → Kuksa (异步)
 """
 
+import os
 import time
-import glob
 import threading
 import requests
 import minimalmodbus
 import serial
 import base64
 import subprocess
+import sys
 
+AAS_SERVER = os.environ.get("AAS_SERVER", "http://192.168.137.1:8081")
+AAS_ID = os.environ.get("AAS_ID", None)
 
-AAS_SERVER = "http://192.168.137.1:8081"
-AAS_ID = "urn:mt3900:sensor:1a86:55d3:ttyUSB0"
 VALUE_IDSHORT = "Value"
 
-KUKSA_SERVER = "192.168.137.1:55555"
-VSS_PATH = "Vehicle.ADAS.ParkAssist.Ultrasonic.Front.Center.Distance"
 
-BAUDRATE = 9600
-SLAVE_ADDR = 1
-REGISTER = 0x0101
-SAMPLE_INTERVAL = 0.3
-
-
+# ============================================================
+# Base64 URL Encode
+# ============================================================
 def b64url(s: str):
     return base64.urlsafe_b64encode(s.encode()).decode().rstrip("=")
 
 
-def resolve_value_url():
+# ============================================================
+# 从 AAS 查询 AssetInterface（Port + VSSPath）
+# ============================================================
+def resolve_asset_interface():
+    if not AAS_ID:
+        print("❌ ERROR: AAS_ID not provided by orchestrator.")
+        sys.exit(1)
+
+    print(f"🔧 Driver launched with AAS_ID = {AAS_ID}")
+
     enc_shell = b64url(AAS_ID)
     shell_url = f"{AAS_SERVER}/shells/{enc_shell}"
 
@@ -42,23 +52,51 @@ def resolve_value_url():
     if isinstance(shell, list):
         shell = shell[0]
 
-    submodels = shell.get("submodels", [])
-
     asset_sm_iri = None
-    for sm in submodels:
+    for sm in shell["submodels"]:
         iri = sm["keys"][0]["value"]
         if iri.endswith("/AssetInterface"):
             asset_sm_iri = iri
 
     if not asset_sm_iri:
-        print("❌ AssetInterface not found in AAS")
-        exit(1)
+        print("❌ ERROR: AssetInterface not found in AAS")
+        sys.exit(1)
 
     enc_sm = b64url(asset_sm_iri)
 
-    value_url = f"{AAS_SERVER}/submodels/{enc_sm}/submodel-elements/{VALUE_IDSHORT}"
-    print(f"🔗 AAS Value URL = {value_url}")
-    return value_url
+    # GET AssetInterface submodel
+    sm_url = f"{AAS_SERVER}/submodels/{enc_sm}"
+    sm = requests.get(sm_url).json()
+
+    port = None
+    vss = None
+
+    for elem in sm["submodelElements"]:
+        if elem["idShort"] == "Port":
+            port = elem["value"]
+        elif elem["idShort"] == "VSSPath":
+            vss = elem["value"]
+
+    if not port:
+        print("❌ ERROR: Port not found in AssetInterface")
+        sys.exit(1)
+
+    if not vss:
+        print("❌ WARNING: VSSPath not found → publish disabled")
+
+    print(f"🔌 Port from AAS = {port}")
+    print(f"📡 VSSPath from AAS = {vss}")
+
+    return port, vss, enc_sm
+
+
+# ============================================================
+# Ultrasonic Sensor (Modbus)
+# ============================================================
+BAUDRATE = 9600
+SLAVE_ADDR = 1
+REGISTER = 0x0101
+SAMPLE_INTERVAL = 0.3
 
 
 class Ultrasonic:
@@ -79,15 +117,17 @@ class Ultrasonic:
             return None
 
 
+# ============================================================
+# Kuksa publish（异步 Docker）
+# ============================================================
 def publish_kuksa_async(signal, value):
     def _pub():
         cmd = [
             "docker", "run",
-            "-i",
-            "-t",       # ⭐ 必须加
+            "-i", "-t",
             "--rm",
             "ghcr.io/eclipse-kuksa/kuksa-databroker-cli:main",
-            "--server", KUKSA_SERVER,
+            "--server", "192.168.137.1:55555",
             "--protocol", "kuksa.val.v1",
             "publish",
             signal,
@@ -98,48 +138,47 @@ def publish_kuksa_async(signal, value):
     threading.Thread(target=_pub, daemon=True).start()
 
 
+# ============================================================
+# MAIN
+# ============================================================
 def main():
-    ports = glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*")
-    if not ports:
-        print("❌ No ultrasonic sensor found")
-        return
+    port, vss, enc_sm = resolve_asset_interface()
 
-    port = ports[0]
-    print(f"🔌 Using port = {port}")
+    # Build AAS PUT URL for Value
+    value_url = f"{AAS_SERVER}/submodels/{enc_sm}/submodel-elements/{VALUE_IDSHORT}"
 
     sensor = Ultrasonic(port)
-    value_url = resolve_value_url()
+    last_pub = 0
 
-    print("\n🚀 Start reading ultrasonic sensor...\n")
-
-    last_publish = 0  # 上一次 Docker publish 的时间戳
+    print("\n🚀 Ultrasonic driver started.\n")
 
     while True:
         now = time.time()
 
-        # --- 1) 读取超声波 ---
+        # 1) Read ultrasonic
         value = sensor.read()
         if value is None:
             print("⚠️ Read failed")
             time.sleep(SAMPLE_INTERVAL)
             continue
 
-        print(f"📡 Distance = {value} m")
+        print(f"📏 Distance = {value:.3f} m")
 
-        # --- 2) PUT AAS（每0.3秒）---
+        # 2) PUT → AAS
         body = {
             "idShort": VALUE_IDSHORT,
             "modelType": "Property",
             "valueType": "xs:double",
             "value": str(value)
         }
-        requests.put(value_url, json=body)
+        r = requests.put(value_url, json=body)
+        print(f"➡️ PUT AAS {r.status_code}")
 
-        # --- 3) Docker publish 每3秒一次 ---
-        if now - last_publish >= 3:
-            publish_kuksa_async(VSS_PATH, value)
-            last_publish = now
-            print("🐳 docker publish executed")
+        # 3) Publish to Kuksa every 3s
+        if vss and now - last_pub >= 3:
+            publish_kuksa_async(vss, value)
+            last_pub = now
+            print("🐳 publish → kuksa")
 
         time.sleep(SAMPLE_INTERVAL)
 

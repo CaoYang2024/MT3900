@@ -1,227 +1,263 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Orchestrator v4 (FINAL — English)
+=================================
+Features:
+✔ Exact AAS matching using fingerprint (vendor:product:serial)
+✔ Automatically downloads driver.py from AAS
+✔ Injects environment variables AAS_ID and AAS_SERVER into driver
+✔ Supports both Camera and Ultrasonic sensors
+"""
+
 import os
 import signal
 import subprocess
-import time
 import base64
 import requests
 import pyudev
 
-
 AAS_SERVER = "http://192.168.137.1:8081"
+FILE_IDSHORT = "DriverFile"
+DRIVER_NAME = "driver.py"
 
-# 两种 File 属性
-FILE_CAMERA = "CameraFile"
-FILE_ULTRA = "DriverFile"
-
-active = {}
-devpath_map = {}          # device_path → fingerprint key
-devnode_map = {}          # fingerprint key → /dev/video* or /dev/ttyUSB*
+# Active driver process information
+active_proc = None
+active_fp_key = None
+active_devpath = None
 
 
+# ============================================================
+# Helpers
+# ============================================================
 def b64url(s: str):
+    """Encode string using URL-safe Base64 (for BaSyx REST paths)."""
     return base64.urlsafe_b64encode(s.encode()).decode().rstrip("=")
 
 
-# ======================================================
-# USB FINGERPRINT
-# ======================================================
+def get_usb_fingerprint(dev):
+    """Extract vendor/product/serial attributes from a USB device."""
+    vendor = dev.attributes.get("idVendor")
+    product = dev.attributes.get("idProduct")
+    serial = dev.attributes.get("serial")
 
-def get_usb_fingerprint(device):
     return {
-        "idVendor": device.get("ID_VENDOR_ID") or "",
-        "idProduct": device.get("ID_MODEL_ID") or "",
-        "serial": device.get("ID_SERIAL_SHORT") or "",
+        "vendor": vendor.decode() if vendor else "",
+        "product": product.decode() if product else "",
+        "serial": serial.decode() if serial else "",
     }
 
 
-def make_key(fp):
-    return f"{fp['idVendor']}:{fp['idProduct']}"
+def fp_key(fp):
+    """Fingerprint key format used for AAS matching."""
+    return f"{fp['vendor']}:{fp['product']}:{fp['serial']}"
 
 
-# ======================================================
-# 判断设备类型
-# ======================================================
+# ============================================================
+# AAS Matching
+# ============================================================
+def find_aas_by_fingerprint(fp):
+    """Find AAS whose ID ends with vendor:product:serial."""
+    key = fp_key(fp)
+    print(f"🔍 Searching AAS matching fingerprint: {key}")
 
-def detect_device_type(device):
-    """
-    返回 'camera' / 'ultrasonic' / None
-    """
-
-    # 向下查找 video 设备
-    for child in device.children:
-        if child.subsystem == "video4linux":     # camera
-            return "camera"
-
-    # 向下查找 ttyUSB/ACM
-    for child in device.children:
-        if child.device_node and child.device_node.startswith(("/dev/ttyUSB", "/dev/ttyACM")):
-            return "ultrasonic"
-
-    return None
-
-
-# ======================================================
-# AAS MATCH
-# ======================================================
-
-def find_aas(key_short):
     shells = requests.get(f"{AAS_SERVER}/shells").json().get("result", [])
+
     for sh in shells:
-        if key_short in sh["id"]:
-            return sh["id"]
+        aas_id = sh["id"]
+        if aas_id.endswith(key):
+            print(f"   ✔ Found AAS: {aas_id}")
+            return aas_id
+
+    print("   ❌ No AAS matched")
     return None
 
 
-# ======================================================
-# DOWNLOAD DRIVER FILE
-# ======================================================
+# ============================================================
+# Download Driver File
+# ============================================================
+def download_driver(aas_id, out_path):
+    """Download driver.py from the AssetInterface File element in AAS."""
+    print(f"⬇️ Requesting DriverFile from AAS {aas_id}")
 
-def download_driver(aas_id, out_path, file_idshort):
     enc_shell = b64url(aas_id)
     shell = requests.get(f"{AAS_SERVER}/shells/{enc_shell}").json()
     if isinstance(shell, list):
         shell = shell[0]
 
-    # find AssetInterface
-    ai = None
+    # Locate AssetInterface submodel
+    ai_iri = None
     for sm in shell["submodels"]:
         iri = sm["keys"][0]["value"]
         if iri.endswith("/AssetInterface"):
-            ai = iri
-    if not ai:
-        raise RuntimeError("No AssetInterface found")
+            ai_iri = iri
 
-    enc_sm = b64url(ai)
+    if not ai_iri:
+        raise RuntimeError("❌ No AssetInterface found in AAS")
 
-    # download
-    url = (
-        f"{AAS_SERVER}/submodels/{enc_sm}/submodel-elements/"
-        f"{file_idshort}/attachment"
-    )
+    enc_sm = b64url(ai_iri)
+    url = f"{AAS_SERVER}/submodels/{enc_sm}/submodel-elements/{FILE_IDSHORT}/attachment"
 
-    print(f"⬇ Download: {url}")
-
+    print(f"   → GET {url}")
     r = requests.get(url)
+
     if r.status_code != 200:
-        raise RuntimeError(f"Download failed {r.status_code}: {r.text}")
+        raise RuntimeError(f"❌ Download failed {r.status_code}: {r.text}")
 
     with open(out_path, "wb") as f:
         f.write(r.content)
 
-    print(f"📥 File saved → {out_path}")
+    print(f"📥 Saved → {out_path}\n")
 
 
-# ======================================================
-# START / STOP DRIVER
-# ======================================================
+# ============================================================
+# Start / Stop Driver
+# ============================================================
+def start_driver(script, fp, aas_id):
+    """Start driver.py with injected AAS_ID and AAS_SERVER."""
+    global active_proc, active_fp_key
 
-def start_driver(script, key):
-    print(f"🚀 Starting driver: {script}")
-    proc = subprocess.Popen(["python3", script], preexec_fn=os.setsid)
-    active[key] = proc
+    key = fp_key(fp)
+    active_fp_key = key
+
+    print(f"🚀 Starting driver for {key}")
+    print(f"   → Inject AAS_ID={aas_id}")
+    print(f"   → Inject AAS_SERVER={AAS_SERVER}")
+
+    env = os.environ.copy()
+    env["AAS_ID"] = aas_id
+    env["AAS_SERVER"] = AAS_SERVER
+
+    active_proc = subprocess.Popen(
+        ["python3", script],
+        preexec_fn=os.setsid,
+        env=env
+    )
 
 
-def stop_driver(key):
-    if key not in active:
+def stop_driver():
+    """Terminate the currently running driver process."""
+    global active_proc, active_fp_key
+
+    if not active_proc:
         return
 
-    proc = active[key]
-    print(f"🛑 Killing driver for {key}...")
+    print("🛑 Stopping driver...")
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except:
-        pass
-    try:
-        proc.wait(timeout=1)
+        os.killpg(active_proc.pid, signal.SIGTERM)
     except:
         pass
 
-    del active[key]
-    print("   ✔ Killed")
+    active_proc = None
+    active_fp_key = None
+
+    print("   ✔ stopped\n")
 
 
-# ======================================================
-# HOTPLUG HANDLERS
-# ======================================================
+# ============================================================
+# USB Hotplug Handlers
+# ============================================================
+def handle_add(dev):
+    """Handle USB device insertion event."""
+    global active_devpath
 
-def handle_add(device):
+    fp = get_usb_fingerprint(dev)
+    key = fp_key(fp)
 
-    fp = get_usb_fingerprint(device)
-    key = make_key(fp)
-    devpath_map[device.device_path] = key
+    print(f"🔌 [ADD] USB Device {key}")
+    active_devpath = dev.device_path
 
-    dev_type = detect_device_type(device)
-    print(f"🔌 [ADD] {key} ({dev_type})")
-
-    if dev_type is None:
-        print("❌ Unrecognized sensor type")
-        return
-
-    aas_id = find_aas(key)
+    aas_id = find_aas_by_fingerprint(fp)
     if not aas_id:
-        print("❌ No matching AAS")
         return
 
-    # decide which File to use
-    if dev_type == "camera":
-        file_idshort = FILE_CAMERA
-        script = f"driver_camera_{key.replace(':','_')}.py"
+    download_driver(aas_id, DRIVER_NAME)
+    start_driver(DRIVER_NAME, fp, aas_id)
+
+
+def handle_remove(dev):
+    """Handle USB device removal event."""
+    global active_devpath
+
+    print(f"🔌 [REMOVE] devpath={dev.device_path}")
+
+    if dev.device_path == active_devpath:
+        stop_driver()
+        active_devpath = None
     else:
-        file_idshort = FILE_ULTRA
-        script = f"driver_ultra_{key.replace(':','_')}.py"
-
-    # download + start
-    download_driver(aas_id, script, file_idshort)
-    start_driver(script, key)
+        print("   (Not the active device)")
 
 
-def handle_remove(device):
-    devpath = device.device_path
-    key = devpath_map.get(devpath)
+# ============================================================
+# Initial Scan
+# ============================================================
+def initial_scan():
+    """At program start, check if any sensor is already connected."""
+    print("🔎 Initial USB scan...")
 
-    print(f"🔌 [REMOVE] {devpath} → key={key}")
+    ctx = pyudev.Context()
 
-    if key:
-        stop_driver(key)
-        del devpath_map[devpath]
-    else:
-        print("   (no active driver)")
+    for dev in ctx.list_devices(subsystem="usb", DEVTYPE="usb_device"):
+        fp = get_usb_fingerprint(dev)
+        if not fp["vendor"]:
+            continue
+
+        aas_id = find_aas_by_fingerprint(fp)
+        if not aas_id:
+            continue
+
+        print("💡 Found existing sensor → starting driver")
+
+        global active_devpath
+        active_devpath = dev.device_path
+
+        download_driver(aas_id, DRIVER_NAME)
+        start_driver(DRIVER_NAME, fp, aas_id)
+        return
+
+    print("⚪ No existing devices.\n")
 
 
-# ======================================================
-# MAIN
-# ======================================================
-
+# ============================================================
+# MAIN LOOP
+# ============================================================
 def main():
-    print("👀 Monitoring sensors (Camera + Ultrasonic)...")
+    print("\n======================================")
+    print("         🚗 Sensor Orchestrator v4")
+    print("   Match AAS by vendor:product:serial")
+    print("======================================\n")
 
-    context = pyudev.Context()
-    monitor = pyudev.Monitor.from_netlink(context)
+    initial_scan()
+
+    print("👀 Watching USB hotplug...\n")
+
+    ctx = pyudev.Context()
+    monitor = pyudev.Monitor.from_netlink(ctx)
     monitor.filter_by(subsystem="usb")
 
-    for action, device in monitor:
-        if device.device_type != "usb_device":
+    for action, dev in monitor:
+        if dev.device_type != "usb_device":
             continue
 
         if action == "add":
-            handle_add(device)
+            handle_add(dev)
         elif action == "remove":
-            handle_remove(device)
+            handle_remove(dev)
 
 
-# kill on Ctrl+C
-def shutdown_all(signum, frame):
-    print("\n👋 Exit, killing drivers...")
-    for key in list(active.keys()):
-        stop_driver(key)
+# ============================================================
+# Exit Hooks
+# ============================================================
+def shutdown(sig, frame):
+    """Gracefully terminate orchestrator and running driver."""
+    print("\n👋 Shutdown orchestrator")
+    stop_driver()
     exit(0)
 
 
-signal.signal(signal.SIGINT, shutdown_all)
-signal.signal(signal.SIGTERM, shutdown_all)
+signal.signal(signal.SIGINT, shutdown)
+signal.signal(signal.SIGTERM, shutdown)
 
 
 if __name__ == "__main__":
