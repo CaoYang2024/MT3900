@@ -1,0 +1,39 @@
+<!-- 
+monitor.launch - Launch file for PnP Sensor Monitor
+====================================================
+
+This launch file starts the sensor monitor node that:
+1. Polls the Raspberry Pi for active sensors
+2. Fetches and parses AAS to understand the sensor
+3. Starts the Application container on the UGV
+
+Usage:
+    roslaunch pnp_sensor_monitor monitor.launch
+    roslaunch pnp_sensor_monitor monitor.launch pi_address:=192.168.1.100
+
+Arguments:
+    pi_address  - IP address of the Raspberry Pi (default: from config.yaml)
+    config_file - Path to config file (default: package config/config.yaml)
+-->
+
+<launch>
+    <!-- Arguments -->
+    <arg name="pi_address" default="" />
+    <arg name="config_file" default="$(find pnp_sensor_monitor)/config/config.yaml" />
+    
+    <!-- Sensor Monitor Node -->
+    <node name="pnp_sensor_monitor" 
+          pkg="pnp_sensor_monitor" 
+          type="sensor_monitor.py"
+          output="screen"
+          respawn="false">
+        
+        <!-- Config file path -->
+        <param name="config_file" value="$(arg config_file)" />
+        
+        <!-- Override Pi address if provided -->
+        <param name="pi_address" value="$(arg pi_address)" if="$(eval arg('pi_address') != '')" />
+        
+    </node>
+    
+</launch>

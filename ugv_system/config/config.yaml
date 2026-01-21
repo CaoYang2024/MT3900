@@ -1,0 +1,20 @@
+# PnP Sensor Monitor Configuration
+# =================================
+#
+# This file configures the sensor monitor for the UGV.
+# Place this in your ROS package's config/ directory.
+
+# Raspberry Pi (Intelligent Sensor Hub) settings
+# NOTE: Adjust to match your network configuration
+# The student's setup uses 192.168.137.x network
+pi_address: "192.168.1.150"  # IP address of the Pi
+aas_port: 8080                  # Port where Pi serves AAS (default: 8080)
+
+# Polling settings
+poll_interval_sec: 2.0          # How often to check for sensors (seconds)
+
+# Container settings
+container_prefix: "pnp-app"     # Prefix for Application container names
+
+# Logging
+log_level: "INFO"               # DEBUG, INFO, WARN, ERROR

@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>pnp_sensor_monitor</name>
+  <version>1.0.0</version>
+  <description>
+    Plug-and-Play Sensor Monitor for UGV.
+    
+    This package monitors a Raspberry Pi (Intelligent Sensor Hub) for
+    available PnP sensors and automatically starts Application containers
+    on the UGV to consume sensor data.
+    
+    Part of the IAS 2025 Thesis: Industrial Plug-and-Play Sensor Integration
+    using Asset Administration Shell (AAS).
+  </description>
+
+  <maintainer email="student@university.edu">IAS Student</maintainer>
+  <license>MIT</license>
+  <author>IAS Thesis Project 2025</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <!-- Python dependencies (install via pip) -->
+  <!-- docker: pip install docker -->
+  <!-- requests: pip install requests -->
+  <!-- pyyaml: pip install pyyaml -->
+
+  <export>
+  </export>
+</package>

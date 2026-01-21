@@ -1,0 +1,79 @@
+# AAS Plug-and-Play Edge Agent Configuration
+# =============================================
+#
+# This file contains all configurable parameters for the bootstrap agent.
+# Environment variables will override values set here.
+#
+# Copy this file to config.yaml and modify as needed.
+
+# Cloud Proxy Connection
+# ----------------------
+# The cloud proxy runs on your Host PC and provides the bridge
+# to the BaSyx AAS infrastructure.
+cloud:
+  # URL of the OEM cloud proxy
+  # Replace with your Host PC's IP address
+  url: "http://172.20.10.4:5000"
+  # url: "http://192.168.0.180:5000"
+  # # Request timeout in seconds
+  timeout: 10
+
+# Edge Device Identity
+# --------------------
+# These settings identify this edge device in the system.
+edge:
+  # Unique identifier for this edge device
+  # Used in AAS instance IDs and mDNS advertisement
+  id: "pi-01"
+  
+  # Port for the local AAS HTTP server
+  # Other systems query this port to get sensor information
+  aas_port: 8080
+
+# Driver Container Settings
+# -------------------------
+# Configuration for the Docker containers that run sensor drivers.
+driver:
+  # Name for the active driver container
+  # Using a fixed name makes it easy to manage
+  container_name: "active-driver-container"
+  
+  # Run containers in privileged mode (required for device access)
+  privileged: true
+  
+  # Use host networking (simplifies port access)
+  network_mode: "host"
+
+# Operational Mode
+# ----------------
+# The agent supports single-sensor mode (one sensor at a time)
+# for simplicity and resource management.
+mode:
+  # Only allow one sensor at a time
+  single_sensor: true
+
+# Logging Configuration
+# ---------------------
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # Log to file (in addition to console)
+  # Set to null to disable file logging
+  file: null  # e.g., "/var/log/aas-pnp.log"
+
+# USB Device Filtering
+# --------------------
+# Configure which USB devices to ignore during scanning.
+usb:
+  # Ignore USB hubs (device class 09)
+  ignore_hubs: true
+  
+  # Ignore HID devices like keyboards/mice (device class 03)
+  # Set to false if you want to integrate HID devices
+  ignore_hid: true
+  
+  # Additional vendor IDs to ignore (comma-separated hex values)
+  # Default ignores Linux Foundation virtual devices (1d6b)
+# Additional vendor IDs to ignore (comma-separated hex values)
+  ignore_vendors: "1d6b,2109,0000,0002,3431"
